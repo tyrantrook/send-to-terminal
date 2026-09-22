@@ -1,0 +1,133 @@
+{
+  "name": "send-to-terminal",
+  "displayName": "Send To Terminal",
+  "description": "Send the editor selection or clipboard text to the active integrated terminal.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "sendToTerminal.sendSelection",
+        "title": "Send Selection to Terminal",
+        "category": "Send To Terminal"
+      },
+      {
+        "command": "sendToTerminal.sendClipboard",
+        "title": "Send Clipboard to Terminal",
+        "category": "Send To Terminal"
+      },
+      {
+        "command": "sendToTerminal.sendToNewTerminal",
+        "title": "Send Selection to New Terminal",
+        "category": "Send To Terminal"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "sendToTerminal.sendSelection",
+          "when": "editorTextFocus",
+          "group": "navigation@10"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "sendToTerminal.sendSelection",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "sendToTerminal.sendClipboard",
+        "key": "ctrl+alt+shift+enter",
+        "mac": "cmd+alt+shift+enter"
+      }
+    ],
+    "configuration": {
+      "title": "Send To Terminal",
+      "properties": {
+        "sendToTerminal.autoExecute": {
+          "type": "boolean",
+          "default": true,
+          "description": "Append a newline so editor-selection sends run immediately."
+        },
+        "sendToTerminal.clipboard.autoExecute": {
+          "type": "boolean",
+          "default": false,
+          "description": "Append a newline for clipboard sends. Off by default because copied chat output may contain untrusted commands."
+        },
+        "sendToTerminal.revealTerminal": {
+          "type": "string",
+          "enum": [
+            "always",
+            "onCreate",
+            "never"
+          ],
+          "default": "always",
+          "description": "When to show the terminal panel on send."
+        },
+        "sendToTerminal.focusTerminal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Move keyboard focus to the terminal after sending. When off, focus stays in the editor."
+        },
+        "sendToTerminal.multilineBehavior": {
+          "type": "string",
+          "enum": [
+            "sendAll",
+            "joinWithSemicolon",
+            "firstLineOnly",
+            "confirm"
+          ],
+          "default": "confirm",
+          "description": "How to handle a multi-line selection."
+        },
+        "sendToTerminal.trimWhitespace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Trim leading/trailing whitespace and strip common leading indentation from each line."
+        },
+        "sendToTerminal.fallbackToCurrentLine": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use the cursor's line when the selection is empty."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run check-types && node esbuild.js --production",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pretest:integration": "tsc -p tsconfig.integration.json",
+    "test:integration": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0",
+    "vitest": "^2.1.8"
+  }
+}

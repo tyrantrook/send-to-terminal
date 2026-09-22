@@ -1,0 +1,16 @@
+.vscode/**
+.vscode-test/**
+.azure/**
+.github/**
+src/**
+test/**
+out/**
+node_modules/**
+coverage/**
+**/*.map
+**/tsconfig*.json
+esbuild.js
+eslint.config.mjs
+vitest.config.ts
+.vscode-test.mjs
+.gitignore
