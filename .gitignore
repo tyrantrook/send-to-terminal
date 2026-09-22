@@ -6,6 +6,10 @@ coverage/
 *.vsix
 .DS_Store
 
+# launch/tasks/extensions are shared project config; settings.json is personal prefs
+# that VS Code rewrites on UI toggles.
+.vscode/settings.json
+
 # Local agent tooling and planning artifacts, not part of the extension.
 .azure/
 .github/agents/
