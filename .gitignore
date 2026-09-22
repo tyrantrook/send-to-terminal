@@ -5,3 +5,7 @@ coverage/
 .vscode-test/
 *.vsix
 .DS_Store
+
+# Local agent tooling and planning artifacts, not part of the extension.
+.azure/
+.github/agents/
