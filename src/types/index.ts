@@ -10,6 +10,7 @@ export type SendOutcome = 'sent' | 'cancelled' | 'empty' | 'too-large' | 'failed
 export interface SendSettings {
   autoExecute: boolean;
   clipboardAutoExecute: boolean;
+  bypassConfirmation: boolean;
   revealTerminal: RevealMode;
   focusTerminal: boolean;
   multilineBehavior: MultilineMode;

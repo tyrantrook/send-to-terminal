@@ -6,15 +6,27 @@ export interface TerminalSendResult {
   created: boolean;
 }
 
+/** A terminal chosen before the dialog opens, so approval and delivery cannot diverge. */
+export interface BoundTerminal {
+  readonly name: string;
+  isUsable(): boolean;
+}
+
+export type ConfirmChoice = 'send' | 'review' | 'cancel';
+
 export interface TerminalPort {
-  /** Name of the terminal that would receive the text, or undefined if a new one is needed. */
-  peek(newTerminal: boolean): string | undefined;
-  send(dispatch: TerminalDispatch): TerminalSendResult | Promise<TerminalSendResult>;
+  /** The existing terminal that would receive the text, or undefined if a new one is needed. */
+  bind(newTerminal: boolean): BoundTerminal | undefined;
+  send(
+    dispatch: TerminalDispatch,
+    bound?: BoundTerminal
+  ): TerminalSendResult | Promise<TerminalSendResult>;
 }
 
 export interface UiPort {
   info(message: string): void | Promise<void>;
-  confirm(message: string, detail: string): Promise<boolean>;
+  confirm(message: string, detail: string, canReview: boolean): Promise<ConfirmChoice>;
+  review(text: string): Promise<void>;
 }
 
 export interface LogPort {
@@ -37,8 +49,13 @@ export const MAX_CHARACTERS = 100_000;
 const PREVIEW_MAX_LINES = 10;
 const PREVIEW_MAX_CHARACTERS = 500;
 
+export interface Preview {
+  text: string;
+  truncated: boolean;
+}
+
 /** The payload the user is being asked to approve, truncated for the dialog. */
-export function buildPreview(text: string): string {
+export function buildPreview(text: string): Preview {
   const lines = text.split('\n');
   let preview = lines.slice(0, PREVIEW_MAX_LINES).join('\n');
   let omitted = Math.max(0, lines.length - PREVIEW_MAX_LINES);
@@ -48,7 +65,13 @@ export function buildPreview(text: string): string {
     omitted = lines.length - preview.split('\n').length + 1;
   }
 
-  return omitted > 0 ? `${preview}\n… (${omitted} more lines)` : preview;
+  return omitted > 0
+    ? { text: `${preview}\n… (${omitted} more lines)`, truncated: true }
+    : { text: preview, truncated: false };
+}
+
+function lineLabel(count: number): string {
+  return count === 1 ? 'line' : 'lines';
 }
 
 export async function runSendPipeline(
@@ -79,33 +102,55 @@ export async function runSendPipeline(
     request.source === 'clipboard' ? settings.clipboardAutoExecute : settings.autoExecute;
 
   // An embedded newline IS an Enter press, so `execute: false` only holds back
-  // the final line. Never let that happen without saying so.
+  // the final line. Anything that runs a command has to be approved.
   const payloadLines = decision.text.split('\n').length;
   const executedLines = execute ? payloadLines : payloadLines - 1;
-  const misleadingExecute = !execute && payloadLines > 1;
+  const needsConfirmation =
+    !settings.bypassConfirmation && (executedLines > 0 || decision.kind === 'confirm');
 
-  if (decision.kind === 'confirm' || misleadingExecute) {
-    const target = deps.terminal.peek(request.newTerminal) ?? 'a new terminal';
+  let bound: BoundTerminal | undefined;
+
+  if (needsConfirmation) {
+    bound = deps.terminal.bind(request.newTerminal);
+    const target = bound?.name ?? 'a new terminal';
     const reason = decision.kind === 'confirm' && decision.reason ? `${decision.reason}\n\n` : '';
-    const confirmed = await deps.ui.confirm(
-      `Send ${payloadLines} lines to ${target}?`,
-      `${reason}${executedLines} of ${payloadLines} lines will run immediately.\n\n` +
-        buildPreview(decision.text)
-    );
+    const preview = buildPreview(decision.text);
+    const message = `Send ${payloadLines} ${lineLabel(payloadLines)} to ${target}?`;
+    const detail =
+      `${reason}${executedLines} of ${payloadLines} ${lineLabel(payloadLines)} will run ` +
+      `immediately.\n\n${preview.text}`;
 
-    if (!confirmed) {
+    let choice = await deps.ui.confirm(message, detail, preview.truncated);
+    while (choice === 'review') {
+      await deps.ui.review(decision.text);
+      choice = await deps.ui.confirm(message, detail, preview.truncated);
+    }
+
+    if (choice !== 'send') {
       deps.log.append(`cancelled ${request.source}: ${payloadLines} lines`);
       return 'cancelled';
     }
+
+    // The approved terminal may have closed while the dialog was open.
+    if (bound && !bound.isUsable()) {
+      await deps.ui.info(
+        `Send To Terminal: "${bound.name}" closed while waiting for confirmation, so nothing was sent.`
+      );
+      deps.log.append(`aborted ${request.source}: "${bound.name}" closed during confirmation`);
+      return 'failed';
+    }
   }
 
-  const result = await deps.terminal.send({
-    text: decision.text,
-    execute,
-    newTerminal: request.newTerminal,
-    reveal: settings.revealTerminal,
-    focus: settings.focusTerminal
-  });
+  const result = await deps.terminal.send(
+    {
+      text: decision.text,
+      execute,
+      newTerminal: request.newTerminal,
+      reveal: settings.revealTerminal,
+      focus: settings.focusTerminal
+    },
+    bound
+  );
 
   if (decision.kind === 'send' && decision.notice) {
     await deps.ui.info(decision.notice);

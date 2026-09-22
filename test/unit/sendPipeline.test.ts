@@ -1,42 +1,64 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_LINES, buildPreview, runSendPipeline } from '../../src/core/sendPipeline';
-import type { SendPipelineDeps } from '../../src/core/sendPipeline';
+import type {
+  BoundTerminal,
+  ConfirmChoice,
+  SendPipelineDeps
+} from '../../src/core/sendPipeline';
 import { DEFAULT_SETTINGS } from '../../src/vscode/settings';
 import type { SendSettings, TerminalDispatch } from '../../src/types';
 
-function createDeps(confirmResult = true): SendPipelineDeps & {
+type TestDeps = SendPipelineDeps & {
   sent: TerminalDispatch[];
+  targets: (BoundTerminal | undefined)[];
   info: ReturnType<typeof vi.fn>;
   confirm: ReturnType<typeof vi.fn>;
+  review: ReturnType<typeof vi.fn>;
   logged: string[];
-} {
-  const sent: TerminalDispatch[] = [];
-  const logged: string[] = [];
-  const info = vi.fn();
-  const confirm = vi.fn(async () => confirmResult);
+  bound: BoundTerminal | undefined;
+};
 
-  return {
+/** Answers the confirmation dialog with each choice in turn, then repeats the last. */
+function createDeps(...choices: ConfirmChoice[]): TestDeps {
+  const sent: TerminalDispatch[] = [];
+  const targets: (BoundTerminal | undefined)[] = [];
+  const logged: string[] = [];
+  const answers: ConfirmChoice[] = choices.length > 0 ? [...choices] : ['send'];
+  const info = vi.fn();
+  const review = vi.fn(async (_text: string) => undefined);
+  const confirm = vi.fn(async (_message: string, _detail: string, _canReview: boolean) =>
+    answers.length > 1 ? answers.shift()! : answers[0]
+  );
+
+  const deps: TestDeps = {
     sent,
+    targets,
     info,
     confirm,
+    review,
     logged,
+    bound: { name: 'zsh', isUsable: () => true },
     terminal: {
-      peek: () => 'zsh',
-      send: (dispatch) => {
+      bind: () => deps.bound,
+      send: (dispatch, bound) => {
         sent.push(dispatch);
-        return { terminalName: 'zsh', created: false };
+        targets.push(bound);
+        return { terminalName: bound?.name ?? 'zsh', created: false };
       }
     },
-    ui: { info, confirm },
+    ui: { info, confirm, review },
     log: {
       append: (message) => {
         logged.push(message);
       }
     }
   };
+
+  return deps;
 }
 
 const settings: SendSettings = { ...DEFAULT_SETTINGS, multilineBehavior: 'sendAll' };
+const autoExecuting: SendSettings = { ...settings, autoExecute: true };
 
 describe('runSendPipeline', () => {
   let deps: ReturnType<typeof createDeps>;
@@ -57,10 +79,22 @@ describe('runSendPipeline', () => {
     expect(deps.info).toHaveBeenCalledWith('Send To Terminal: the clipboard is empty.');
   });
 
-  it('auto-executes selection sends when autoExecute is on', async () => {
+  it('types a single-line selection without running it, and without interrupting', async () => {
     const outcome = await runSendPipeline(
       { text: 'npm test', source: 'selection', newTerminal: false },
       settings,
+      deps
+    );
+
+    expect(outcome).toBe('sent');
+    expect(deps.confirm).not.toHaveBeenCalled();
+    expect(deps.sent[0].execute).toBe(false);
+  });
+
+  it('auto-executes selection sends when autoExecute is on', async () => {
+    const outcome = await runSendPipeline(
+      { text: 'npm test', source: 'selection', newTerminal: false },
+      autoExecuting,
       deps
     );
 
@@ -72,6 +106,31 @@ describe('runSendPipeline', () => {
       reveal: 'always',
       focus: false
     });
+  });
+
+  it('asks first, because auto-execute runs the command outright', async () => {
+    await runSendPipeline(
+      { text: 'rm -rf /tmp/victim', source: 'selection', newTerminal: false },
+      autoExecuting,
+      deps
+    );
+
+    expect(deps.confirm).toHaveBeenCalledOnce();
+    const [message, detail] = deps.confirm.mock.calls[0];
+    expect(message).toBe('Send 1 line to zsh?');
+    expect(detail).toContain('1 of 1 line will run immediately.');
+  });
+
+  it('skips the dialog entirely when confirmation is bypassed', async () => {
+    const outcome = await runSendPipeline(
+      { text: 'echo one\necho two', source: 'selection', newTerminal: false },
+      { ...autoExecuting, bypassConfirmation: true },
+      deps
+    );
+
+    expect(outcome).toBe('sent');
+    expect(deps.confirm).not.toHaveBeenCalled();
+    expect(deps.sent[0].execute).toBe(true);
   });
 
   it('does not auto-execute clipboard sends by default', async () => {
@@ -106,7 +165,7 @@ describe('runSendPipeline', () => {
   });
 
   it('cancels when the multi-line confirmation is declined', async () => {
-    const declining = createDeps(false);
+    const declining = createDeps('cancel');
 
     const outcome = await runSendPipeline(
       { text: 'npm ci\nnpm test', source: 'selection', newTerminal: false },
@@ -153,7 +212,7 @@ describe('runSendPipeline', () => {
         deps
       );
 
-      const [message, detail] = deps.confirm.mock.calls[0] as [string, string];
+      const [message, detail] = deps.confirm.mock.calls[0];
       expect(message).toBe('Send 3 lines to zsh?');
       expect(detail).toContain('2 of 3 lines will run immediately.');
     });
@@ -165,12 +224,12 @@ describe('runSendPipeline', () => {
         deps
       );
 
-      const [, detail] = deps.confirm.mock.calls[0] as [string, string];
+      const [, detail] = deps.confirm.mock.calls[0];
       expect(detail).toContain('rm -rf /tmp/victim');
     });
 
     it('drops the whole payload when the user declines', async () => {
-      const declining = createDeps(false);
+      const declining = createDeps('cancel');
 
       const outcome = await runSendPipeline(
         { text: payload, source: 'clipboard', newTerminal: false },
@@ -193,15 +252,89 @@ describe('runSendPipeline', () => {
       expect(deps.sent[0].execute).toBe(false);
     });
 
-    it('leaves sendAll with auto-execute on unprompted, as configured', async () => {
+    it('leaves an explicit bypass unprompted, as configured', async () => {
       await runSendPipeline(
         { text: payload, source: 'selection', newTerminal: false },
-        settings,
+        { ...autoExecuting, bypassConfirmation: true },
         deps
       );
 
       expect(deps.confirm).not.toHaveBeenCalled();
       expect(deps.sent[0].execute).toBe(true);
+    });
+  });
+
+  describe('the approved terminal is the one that receives the text', () => {
+    it('delivers to the terminal named in the dialog', async () => {
+      await runSendPipeline(
+        { text: 'a\nb', source: 'selection', newTerminal: false },
+        settings,
+        deps
+      );
+
+      expect(deps.targets[0]).toBe(deps.bound);
+    });
+
+    it('aborts when the approved terminal closes while the dialog is open', async () => {
+      deps.bound = { name: 'zsh', isUsable: () => false };
+
+      const outcome = await runSendPipeline(
+        { text: 'a\nb', source: 'selection', newTerminal: false },
+        settings,
+        deps
+      );
+
+      expect(outcome).toBe('failed');
+      expect(deps.sent).toHaveLength(0);
+      expect(deps.info).toHaveBeenCalledWith(expect.stringContaining('closed while waiting'));
+    });
+
+    it('binds nothing when no confirmation was needed', async () => {
+      await runSendPipeline(
+        { text: 'npm test', source: 'selection', newTerminal: false },
+        settings,
+        deps
+      );
+
+      expect(deps.targets[0]).toBeUndefined();
+    });
+  });
+
+  describe('reviewing the full text', () => {
+    const long = Array.from({ length: 30 }, (_, i) => `echo ${i}`).join('\n');
+
+    it('offers review only when the dialog cannot show everything', async () => {
+      await runSendPipeline(
+        { text: 'a\nb', source: 'selection', newTerminal: false },
+        settings,
+        deps
+      );
+
+      expect(deps.confirm.mock.calls[0][2]).toBe(false);
+    });
+
+    it('offers review when the preview is truncated', async () => {
+      await runSendPipeline(
+        { text: long, source: 'selection', newTerminal: false },
+        settings,
+        deps
+      );
+
+      expect(deps.confirm.mock.calls[0][2]).toBe(true);
+    });
+
+    it('shows the untruncated payload and asks again', async () => {
+      const reviewing = createDeps('review', 'send');
+
+      const outcome = await runSendPipeline(
+        { text: long, source: 'selection', newTerminal: false },
+        settings,
+        reviewing
+      );
+
+      expect(reviewing.review).toHaveBeenCalledWith(long);
+      expect(reviewing.confirm).toHaveBeenCalledTimes(2);
+      expect(outcome).toBe('sent');
     });
   });
 
@@ -234,7 +367,7 @@ describe('runSendPipeline', () => {
 
   it('names the terminal that will receive the text', async () => {
     const newTerminalDeps = createDeps();
-    newTerminalDeps.terminal.peek = () => undefined;
+    newTerminalDeps.bound = undefined;
 
     await runSendPipeline(
       { text: 'a\nb', source: 'selection', newTerminal: true },
@@ -242,14 +375,14 @@ describe('runSendPipeline', () => {
       newTerminalDeps
     );
 
-    const [message] = newTerminalDeps.confirm.mock.calls[0] as [string, string];
+    const [message] = newTerminalDeps.confirm.mock.calls[0];
     expect(message).toBe('Send 2 lines to a new terminal?');
   });
 
   it('records every send in the log', async () => {
     await runSendPipeline(
       { text: 'npm test', source: 'selection', newTerminal: false },
-      settings,
+      autoExecuting,
       deps
     );
 
@@ -259,14 +392,15 @@ describe('runSendPipeline', () => {
 
 describe('buildPreview', () => {
   it('returns short payloads verbatim', () => {
-    expect(buildPreview('a\nb')).toBe('a\nb');
+    expect(buildPreview('a\nb')).toEqual({ text: 'a\nb', truncated: false });
   });
 
   it('truncates long payloads and reports the remainder', () => {
     const preview = buildPreview(Array.from({ length: 25 }, (_, i) => `line${i}`).join('\n'));
 
-    expect(preview).toContain('line0');
-    expect(preview).not.toContain('line20');
-    expect(preview).toContain('… (15 more lines)');
+    expect(preview.truncated).toBe(true);
+    expect(preview.text).toContain('line0');
+    expect(preview.text).not.toContain('line20');
+    expect(preview.text).toContain('… (15 more lines)');
   });
 });

@@ -8,8 +8,9 @@ export interface ConfigurationLike {
 }
 
 export const DEFAULT_SETTINGS: SendSettings = {
-  autoExecute: true,
+  autoExecute: false,
   clipboardAutoExecute: false,
+  bypassConfirmation: false,
   revealTerminal: 'always',
   focusTerminal: false,
   multilineBehavior: 'confirm',
@@ -42,6 +43,10 @@ export function readSettings(config: ConfigurationLike): SendSettings {
     clipboardAutoExecute: asBoolean(
       config.get<unknown>('clipboard.autoExecute', DEFAULT_SETTINGS.clipboardAutoExecute),
       DEFAULT_SETTINGS.clipboardAutoExecute
+    ),
+    bypassConfirmation: asBoolean(
+      config.get<unknown>('bypassConfirmation', DEFAULT_SETTINGS.bypassConfirmation),
+      DEFAULT_SETTINGS.bypassConfirmation
     ),
     revealTerminal: oneOf(
       config.get<unknown>('revealTerminal', DEFAULT_SETTINGS.revealTerminal),

@@ -1,17 +1,36 @@
 {
   "name": "send-to-terminal",
   "displayName": "Send To Terminal",
-  "description": "Send the editor selection or clipboard text to the active integrated terminal.",
+  "description": "Send the editor selection or clipboard to the integrated terminal. Nothing runs without your confirmation.",
   "version": "0.2.0",
   "publisher": "local",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tyrantrook/send-to-terminal.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tyrantrook/send-to-terminal/issues"
+  },
+  "homepage": "https://github.com/tyrantrook/send-to-terminal#readme",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
     "Other"
   ],
+  "keywords": [
+    "terminal",
+    "shell",
+    "send selection",
+    "clipboard",
+    "run command",
+    "ai safety"
+  ],
+  "galleryBanner": {
+    "color": "#1E1E1E",
+    "theme": "dark"
+  },
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
@@ -60,13 +79,18 @@
       "properties": {
         "sendToTerminal.autoExecute": {
           "type": "boolean",
-          "default": true,
-          "description": "Append a newline so editor-selection sends run immediately."
+          "default": false,
+          "description": "Append a newline so editor-selection sends run immediately. Off by default: the text is typed into the terminal and you press Enter yourself."
         },
         "sendToTerminal.clipboard.autoExecute": {
           "type": "boolean",
           "default": false,
           "description": "Append a newline for clipboard sends. Off by default because copied chat output may contain untrusted commands. Note that a multi-line paste still runs every line but the last, so you are asked to confirm first."
+        },
+        "sendToTerminal.bypassConfirmation": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Send without asking for confirmation, even when the payload will execute commands. **Security-sensitive**: leave this off unless you fully trust every source you send from, including AI chat output."
         },
         "sendToTerminal.revealTerminal": {
           "type": "string",

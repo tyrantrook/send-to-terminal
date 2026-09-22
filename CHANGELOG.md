@@ -2,44 +2,45 @@
 
 ## [0.2.0] - 2026-09-22
 
-### Security
+First public release.
 
-- Turning auto-execute off no longer implies a multi-line send is inert. Each embedded
-  newline is an Enter press, so a multi-line payload always ran every line but the last;
-  any send that would execute a line you did not ask to execute is now gated behind a
-  confirmation dialog.
-- The confirmation dialog now names the target terminal, states how many lines will run,
-  and shows the text being sent, instead of only a line count.
-- Control characters are stripped before text reaches the shell. Previously only carriage
-  returns were normalised, so ESC, EOT and interrupt characters reached the line editor
-  while being invisible in the prompt.
-- `joinWithSemicolon` now refuses to join lines when a comment, unbalanced quote, or
-  backslash continuation would change the command's meaning, and asks for confirmation
-  instead.
-- The clipboard keybinding is scoped to the editor and terminal rather than bound globally,
-  so it no longer fires from the chat input or other unrelated surfaces.
+### Commands
 
-### Added
+- Send the editor selection to the active terminal, falling back to the cursor's line when
+  nothing is selected.
+- Send the editor selection to a brand-new terminal.
+- Send the clipboard to the active terminal.
+- Editor context-menu entry, plus keybindings for the selection and clipboard commands. The
+  clipboard binding is scoped to the editor and the terminal rather than bound globally, so
+  it does not fire from the chat input or other unrelated surfaces.
 
+### Safety
+
+- Nothing is executed by default. `sendToTerminal.autoExecute` and
+  `sendToTerminal.clipboard.autoExecute` are both off, so a send types the text into the
+  terminal and you press Enter yourself.
+- Every send that would run a command asks for confirmation first. That includes multi-line
+  payloads regardless of the auto-execute settings, because each embedded newline is an
+  Enter press and runs every line but the last. `sendToTerminal.bypassConfirmation`, off by
+  default, is the only way to skip the dialog.
+- The confirmation names the target terminal, states how many lines will run immediately,
+  and shows the text. "Review full text" opens the whole payload in an editor when it is
+  too long for the dialog.
+- The terminal named in the confirmation is the terminal that receives the text. If it
+  closes while the dialog is open, the send is abandoned rather than redirected.
+- Control characters are refused rather than deleted, and `U+0085`, `U+2028` and `U+2029`
+  are treated as line breaks. Deleting a hidden character can splice two tokens into a
+  single runnable command that then looks like one line.
+- `joinWithSemicolon` refuses to join lines when a comment, unbalanced quote, or backslash
+  continuation would change the command's meaning, and asks for confirmation instead.
 - Sends above 2,000 lines or 100,000 characters are refused.
-- `firstLineOnly` reports how many lines it skipped instead of discarding them silently.
-- A "Send To Terminal" output channel recording source, line count, executed count, and
+
+### Settings
+
+- Terminal reveal and focus behaviour, multi-line handling, whitespace trimming and shared
+  indentation stripping, and current-line fallback.
+
+### Other
+
+- A "Send To Terminal" output channel records the source, line count, executed count, and
   target terminal for every send.
-
-### Fixed
-
-- Selections larger than ~124,000 lines threw `RangeError: Maximum call stack size exceeded`
-  while computing shared indentation.
-- A terminal whose shell had already exited was reused, silently swallowing the text; a new
-  terminal is now created instead.
-- A failing clipboard read surfaced as an unhandled command error.
-
-## [0.1.0] - 2026-09-22
-
-### Added
-
-- `sendToTerminal.sendSelection`, `sendToTerminal.sendClipboard`, and
-  `sendToTerminal.sendToNewTerminal` commands.
-- Editor context-menu entry and keybindings for selection and clipboard sends.
-- Settings for auto-execute (separate for clipboard), terminal reveal and focus,
-  multi-line behaviour, whitespace trimming, and current-line fallback.

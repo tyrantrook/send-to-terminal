@@ -1,4 +1,4 @@
-import { sanitize } from './textResolver';
+import { normalizeNewlines } from './textResolver';
 import type { MultilineMode } from '../types';
 
 export type MultilineDecision =
@@ -16,7 +16,7 @@ interface LineShape {
 }
 
 export function splitLines(text: string): string[] {
-  return sanitize(text).split('\n');
+  return normalizeNewlines(text).split('\n');
 }
 
 /**
@@ -86,7 +86,7 @@ export function describeJoinHazard(lines: string[]): string | undefined {
 }
 
 export function applyMultilineMode(text: string, mode: MultilineMode): MultilineDecision {
-  const normalized = sanitize(text);
+  const normalized = normalizeNewlines(text);
   const lines = normalized.split('\n');
   const meaningful = lines.filter((line) => line.trim().length > 0);
 

@@ -17,10 +17,19 @@ export async function sendClipboard(deps: SendPipelineDeps): Promise<SendOutcome
 
   const settings = getSettings();
 
-  const text = resolveText(
+  const resolved = resolveText(
     { selectedText: clipboardText, currentLineText: '' },
     { trimWhitespace: settings.trimWhitespace, fallbackToCurrentLine: false }
   );
 
-  return runSendPipeline({ text, source: 'clipboard', newTerminal: false }, settings, deps);
+  if (!resolved.ok) {
+    void vscode.window.showWarningMessage(`Send To Terminal: ${resolved.reason}`);
+    return 'failed';
+  }
+
+  return runSendPipeline(
+    { text: resolved.text, source: 'clipboard', newTerminal: false },
+    settings,
+    deps
+  );
 }

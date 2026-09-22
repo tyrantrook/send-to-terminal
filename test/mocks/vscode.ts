@@ -22,17 +22,20 @@ export const workspace = {
         return configValues.has(key) ? (configValues.get(key) as T) : defaultValue;
       }
     };
-  }
+  },
+  openTextDocument: async () => undefined
 };
 
 export const window = {
   activeTextEditor: undefined,
   activeTerminal: undefined,
+  terminals: [] as readonly unknown[],
   createTerminal: () => {
     throw new Error('createTerminal is not available in unit tests');
   },
   showInformationMessage: async () => undefined,
-  showWarningMessage: async () => undefined
+  showWarningMessage: async () => undefined,
+  showTextDocument: async () => undefined
 };
 
 export const env = {

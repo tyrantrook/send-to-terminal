@@ -25,11 +25,17 @@ describe('readSettings', () => {
     );
   });
 
+  it('keeps confirmation on unless it is explicitly bypassed', () => {
+    expect(readSettings(config({})).bypassConfirmation).toBe(false);
+    expect(readSettings(config({ bypassConfirmation: true })).bypassConfirmation).toBe(true);
+  });
+
   it('applies user overrides', () => {
     expect(
       readSettings(
         config({
-          autoExecute: false,
+          autoExecute: true,
+          bypassConfirmation: true,
           revealTerminal: 'never',
           focusTerminal: true,
           multilineBehavior: 'joinWithSemicolon',
@@ -38,8 +44,9 @@ describe('readSettings', () => {
         })
       )
     ).toEqual({
-      autoExecute: false,
+      autoExecute: true,
       clipboardAutoExecute: false,
+      bypassConfirmation: true,
       revealTerminal: 'never',
       focusTerminal: true,
       multilineBehavior: 'joinWithSemicolon',
@@ -58,7 +65,7 @@ describe('readSettings', () => {
   });
 
   it('falls back to defaults for wrongly typed booleans', () => {
-    expect(readSettings(config({ autoExecute: 'true' })).autoExecute).toBe(true);
+    expect(readSettings(config({ autoExecute: 'true' })).autoExecute).toBe(false);
     expect(readSettings(config({ focusTerminal: 1 })).focusTerminal).toBe(false);
   });
 });

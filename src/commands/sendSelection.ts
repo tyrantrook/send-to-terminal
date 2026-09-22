@@ -17,10 +17,15 @@ export async function sendSelection(
   }
 
   const settings = getSettings();
-  const text = resolveText(snapshot, settings);
+  const resolved = resolveText(snapshot, settings);
+
+  if (!resolved.ok) {
+    void vscode.window.showWarningMessage(`Send To Terminal: ${resolved.reason}`);
+    return 'failed';
+  }
 
   return runSendPipeline(
-    { text, source: 'selection', newTerminal: options.newTerminal ?? false },
+    { text: resolved.text, source: 'selection', newTerminal: options.newTerminal ?? false },
     settings,
     deps
   );

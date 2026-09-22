@@ -7,6 +7,17 @@ const COMMANDS = [
   'sendToTerminal.sendToNewTerminal'
 ];
 
+async function waitFor(predicate: () => boolean, message: string): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  assert.fail(message);
+}
+
 suite('Send To Terminal commands', () => {
   // activationEvents is empty, so commands only register once the extension is activated.
   suiteSetup(async () => {
@@ -31,10 +42,48 @@ suite('Send To Terminal commands', () => {
   test('contributes the documented setting defaults', () => {
     const config = vscode.workspace.getConfiguration('sendToTerminal');
 
-    assert.strictEqual(config.get('autoExecute'), true);
+    assert.strictEqual(config.get('autoExecute'), false);
     assert.strictEqual(config.get('clipboard.autoExecute'), false);
+    assert.strictEqual(config.get('bypassConfirmation'), false);
     assert.strictEqual(config.get('revealTerminal'), 'always');
     assert.strictEqual(config.get('multilineBehavior'), 'confirm');
+  });
+
+  test('types the selection into the terminal without executing it', async () => {
+    const received: string[] = [];
+    const writeEmitter = new vscode.EventEmitter<string>();
+    const pty: vscode.Pseudoterminal = {
+      onDidWrite: writeEmitter.event,
+      open: () => undefined,
+      close: () => undefined,
+      handleInput: (data) => {
+        received.push(data);
+      }
+    };
+
+    // Shown first so it is the active terminal, then the editor takes focus back.
+    const terminal = vscode.window.createTerminal({ name: 'capture', pty });
+    terminal.show();
+    await waitFor(
+      () => vscode.window.activeTerminal === terminal,
+      'the capture terminal never became active'
+    );
+
+    const document = await vscode.workspace.openTextDocument({
+      content: 'echo hello',
+      language: 'shellscript'
+    });
+    const editor = await vscode.window.showTextDocument(document);
+    editor.selection = new vscode.Selection(0, 0, 0, 10);
+
+    await vscode.commands.executeCommand('sendToTerminal.sendSelection');
+    await waitFor(() => received.length > 0, 'nothing reached the terminal');
+
+    assert.strictEqual(
+      received.join(''),
+      'echo hello',
+      'the default send must not append a newline'
+    );
   });
 
   test('sends a single-line selection to a terminal', async () => {

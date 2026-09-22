@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   TERMINAL_NAME,
+  bindTerminal,
   dispatchToTerminal,
-  peekTerminalName,
   resolveTerminal
 } from '../../src/vscode/terminalResolver';
 import type { TerminalLike, TerminalWindowLike } from '../../src/vscode/terminalResolver';
@@ -31,15 +31,20 @@ function createTerminal(name: string, exitCode?: number): TerminalLike & {
 
 function createWindow(active: TerminalLike | undefined): TerminalWindowLike & {
   createdNames: string[];
+  terminals: TerminalLike[];
 } {
   const createdNames: string[] = [];
+  const terminals: TerminalLike[] = active ? [active] : [];
 
   return {
     activeTerminal: active,
+    terminals,
     createdNames,
     createTerminal: (name) => {
+      const terminal = createTerminal(name);
       createdNames.push(name);
-      return createTerminal(name);
+      terminals.push(terminal);
+      return terminal;
     }
   };
 }
@@ -88,17 +93,38 @@ describe('resolveTerminal', () => {
   });
 });
 
-describe('peekTerminalName', () => {
-  it('names a live active terminal', () => {
-    expect(peekTerminalName(createWindow(createTerminal('zsh')), false)).toBe('zsh');
+describe('bindTerminal', () => {
+  it('binds a live active terminal by name', () => {
+    expect(bindTerminal(createWindow(createTerminal('zsh')), false)?.name).toBe('zsh');
   });
 
-  it('returns undefined for a dead terminal, because a new one will be created', () => {
-    expect(peekTerminalName(createWindow(createTerminal('dead', 0)), false)).toBeUndefined();
+  it('binds nothing for a dead terminal, because a new one will be created', () => {
+    expect(bindTerminal(createWindow(createTerminal('dead', 0)), false)).toBeUndefined();
   });
 
-  it('returns undefined when a new terminal is forced', () => {
-    expect(peekTerminalName(createWindow(createTerminal('zsh')), true)).toBeUndefined();
+  it('binds nothing when a new terminal is forced', () => {
+    expect(bindTerminal(createWindow(createTerminal('zsh')), true)).toBeUndefined();
+  });
+
+  it('reports the binding as unusable once the shell exits', () => {
+    const active = createTerminal('zsh');
+    const bound = bindTerminal(createWindow(active), false)!;
+
+    expect(bound.isUsable()).toBe(true);
+
+    active.exitStatus = { code: 0 };
+
+    expect(bound.isUsable()).toBe(false);
+  });
+
+  it('reports the binding as unusable once the terminal is disposed', () => {
+    const active = createTerminal('zsh');
+    const window = createWindow(active);
+    const bound = bindTerminal(window, false)!;
+
+    window.terminals.splice(0, 1);
+
+    expect(bound.isUsable()).toBe(false);
   });
 });
 
@@ -150,5 +176,20 @@ describe('dispatchToTerminal', () => {
     dispatchToTerminal(createWindow(active), { ...dispatch, reveal: 'never' });
 
     expect(active.shown).toEqual([]);
+  });
+
+  it('delivers to the bound terminal even after another one becomes active', () => {
+    const approved = createTerminal('approved');
+    const window = createWindow(approved);
+    const bound = bindTerminal(window, false)!;
+    const other = createTerminal('other');
+    window.activeTerminal = other;
+    window.terminals.push(other);
+
+    const result = dispatchToTerminal(window, dispatch, bound);
+
+    expect(result).toEqual({ terminalName: 'approved', created: false });
+    expect(approved.sentText).toEqual([['npm test', true]]);
+    expect(other.sentText).toEqual([]);
   });
 });
