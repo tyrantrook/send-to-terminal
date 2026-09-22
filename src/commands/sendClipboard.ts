@@ -27,9 +27,14 @@ export async function sendClipboard(deps: SendPipelineDeps): Promise<SendOutcome
     return 'failed';
   }
 
+  // When a webview such as the Markdown preview is active there is no editor for
+  // `focusTerminal: false` to keep focus in, and the text is typed without a newline,
+  // so leaving focus behind strands it one unreachable keypress from running.
+  const focusTerminal = settings.focusTerminal || vscode.window.activeTextEditor === undefined;
+
   return runSendPipeline(
     { text: resolved.text, source: 'clipboard', newTerminal: false },
-    settings,
+    { ...settings, focusTerminal },
     deps
   );
 }

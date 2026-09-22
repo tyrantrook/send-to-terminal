@@ -2,7 +2,7 @@
   "name": "send-to-terminal",
   "displayName": "Send To Terminal",
   "description": "Send the editor selection or clipboard to the integrated terminal. Nothing runs without your confirmation.",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "publisher": "local",
   "license": "MIT",
   "repository": {
@@ -58,6 +58,13 @@
           "when": "editorTextFocus",
           "group": "navigation@10"
         }
+      ],
+      "webview/context": [
+        {
+          "command": "sendToTerminal.sendClipboard",
+          "when": "webviewId == 'markdown.preview' || webviewId == 'vscode.markdown.preview.editor'",
+          "group": "navigation@10"
+        }
       ]
     },
     "keybindings": [
@@ -71,7 +78,7 @@
         "command": "sendToTerminal.sendClipboard",
         "key": "ctrl+alt+shift+enter",
         "mac": "cmd+alt+shift+enter",
-        "when": "editorTextFocus || terminalFocus"
+        "when": "!inChatInput && !chatInputHasFocus && !inlineChatFocused"
       }
     ],
     "configuration": {
