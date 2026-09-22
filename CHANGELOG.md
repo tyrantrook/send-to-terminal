@@ -2,6 +2,14 @@
 
 ## [0.3.2] - 2026-09-22
 
+### Added
+
+- **Send Clipboard to Terminal** now works while a Markdown preview has focus, via both the
+  keybinding and a new entry in the preview's right-click menu. A preview is a webview, so the
+  selection still has to be copied first — the extension API exposes no way to read a selection
+  out of another extension's webview. The menu entry is keyed to the built-in preview's webview
+  ids, so it does not appear in third-party preview extensions.
+
 ### Changed
 
 - The clipboard keybinding is scoped by exclusion — `!inChatInput && !chatInputHasFocus &&
@@ -11,26 +19,11 @@
   The binding consequently also fires in the Explorer, Search, and Settings UI, where it previously
   did nothing. Scoping by `activeWebviewPanelId` was tried first and did not match a keypress
   forwarded out of the webview; that was observed during development and is not covered by a test.
-
-## [0.3.1] - 2026-09-22
-
-### Fixed
-
 - Clipboard sends made with no active text editor — a Markdown preview, but equally the Explorer
   or the Settings UI — now focus the terminal. `focusTerminal` defaults to off so focus stays in
   the editor, but these sends have no editor to stay in, which left the text typed into a terminal
   the user still had to click into before pressing Enter. `revealTerminal: "never"` still
   suppresses the focus change, since focus only moves when the terminal is shown.
-
-## [0.3.0] - 2026-09-22
-
-### Added
-
-- **Send Clipboard to Terminal** now works while a Markdown preview has focus, via both the
-  keybinding and a new entry in the preview's right-click menu. A preview is a webview, so the
-  selection still has to be copied first — the extension API exposes no way to read a selection
-  out of another extension's webview. The menu entry is keyed to the built-in preview's webview
-  ids, so it does not appear in third-party preview extensions.
 
 ## [0.2.0] - 2026-09-22
 
