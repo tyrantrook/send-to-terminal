@@ -53,7 +53,25 @@ suite('Send To Terminal commands', () => {
 
   test('does nothing when the clipboard is empty', async () => {
     await vscode.env.clipboard.writeText('');
+    const before = vscode.window.terminals.length;
 
     await vscode.commands.executeCommand('sendToTerminal.sendClipboard');
+
+    assert.strictEqual(
+      vscode.window.terminals.length,
+      before,
+      'an empty clipboard must not create a terminal'
+    );
+  });
+
+  test('contributes a scoped keybinding for the clipboard command', () => {
+    const extension = vscode.extensions.getExtension('local.send-to-terminal');
+    const keybindings = extension!.packageJSON.contributes.keybindings as {
+      command: string;
+      when?: string;
+    }[];
+    const clipboard = keybindings.find((k) => k.command === 'sendToTerminal.sendClipboard');
+
+    assert.ok(clipboard?.when, 'the clipboard keybinding must not be globally bound');
   });
 });

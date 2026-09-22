@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyMultilineMode, splitLines } from '../../src/core/multiline';
+import { applyMultilineMode, describeJoinHazard, splitLines } from '../../src/core/multiline';
 
 const multiline = 'npm ci\nnpm run build;\n\nnpm test';
 
@@ -38,7 +38,8 @@ describe('applyMultilineMode', () => {
   it('keeps only the first non-blank line', () => {
     expect(applyMultilineMode('\nnpm ci\nnpm test', 'firstLineOnly')).toEqual({
       kind: 'send',
-      text: 'npm ci'
+      text: 'npm ci',
+      notice: 'Send To Terminal: sent the first line only (1 skipped).'
     });
   });
 
@@ -48,5 +49,40 @@ describe('applyMultilineMode', () => {
       text: multiline,
       lineCount: 3
     });
+  });
+});
+
+describe('describeJoinHazard', () => {
+  it('accepts plain commands', () => {
+    expect(describeJoinHazard(['npm ci', 'npm test'])).toBeUndefined();
+  });
+
+  it('accepts a `#` inside a word', () => {
+    expect(describeJoinHazard(['echo a#b', 'npm test'])).toBeUndefined();
+  });
+
+  it('accepts a `#` inside quotes', () => {
+    expect(describeJoinHazard(["echo 'a # b'", 'npm test'])).toBeUndefined();
+  });
+
+  it('rejects a comment that would swallow later lines', () => {
+    expect(describeJoinHazard(['# cleanup', 'rm -rf build'])).toMatch(/comment/);
+  });
+
+  it('rejects an unbalanced quote', () => {
+    expect(describeJoinHazard(['echo "oops', 'npm test'])).toMatch(/quote/);
+  });
+
+  it('rejects a backslash continuation', () => {
+    expect(describeJoinHazard(['rm -rf /tmp/foo \\', '--preserve-root'])).toMatch(/backslash/);
+  });
+});
+
+describe('joinWithSemicolon hazards', () => {
+  it('falls back to confirmation rather than swallowing a command in a comment', () => {
+    const decision = applyMultilineMode("# don't do this\nls -la", 'joinWithSemicolon');
+
+    expect(decision.kind).toBe('confirm');
+    expect(decision).toMatchObject({ text: "# don't do this\nls -la" });
   });
 });

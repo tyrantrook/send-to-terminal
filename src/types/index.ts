@@ -5,7 +5,7 @@ export type RevealMode = 'always' | 'onCreate' | 'never';
 export type SendSource = 'selection' | 'clipboard';
 
 /** Outcome of a send attempt, reported back to the caller for tests and logging. */
-export type SendOutcome = 'sent' | 'cancelled' | 'empty';
+export type SendOutcome = 'sent' | 'cancelled' | 'empty' | 'too-large' | 'failed';
 
 export interface SendSettings {
   autoExecute: boolean;

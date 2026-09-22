@@ -2,7 +2,7 @@
   "name": "send-to-terminal",
   "displayName": "Send To Terminal",
   "description": "Send the editor selection or clipboard text to the active integrated terminal.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "local",
   "license": "MIT",
   "private": true,
@@ -51,7 +51,8 @@
       {
         "command": "sendToTerminal.sendClipboard",
         "key": "ctrl+alt+shift+enter",
-        "mac": "cmd+alt+shift+enter"
+        "mac": "cmd+alt+shift+enter",
+        "when": "editorTextFocus || terminalFocus"
       }
     ],
     "configuration": {
@@ -65,7 +66,7 @@
         "sendToTerminal.clipboard.autoExecute": {
           "type": "boolean",
           "default": false,
-          "description": "Append a newline for clipboard sends. Off by default because copied chat output may contain untrusted commands."
+          "description": "Append a newline for clipboard sends. Off by default because copied chat output may contain untrusted commands. Note that a multi-line paste still runs every line but the last, so you are asked to confirm first."
         },
         "sendToTerminal.revealTerminal": {
           "type": "string",
@@ -124,10 +125,14 @@
     "@types/vscode": "^1.90.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.17.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0",
-    "vitest": "^2.1.8"
+    "vitest": "^5.0.1"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.1.1",
+    "diff": "^8.0.3"
   }
 }

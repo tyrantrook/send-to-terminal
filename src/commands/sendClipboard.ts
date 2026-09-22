@@ -1,12 +1,20 @@
 import * as vscode from 'vscode';
 import { runSendPipeline } from '../core/sendPipeline';
 import { resolveText } from '../core/textResolver';
-import { createHostDeps } from '../vscode/host';
 import { getSettings } from '../vscode/settings';
+import type { SendPipelineDeps } from '../core/sendPipeline';
 import type { SendOutcome } from '../types';
 
-export async function sendClipboard(): Promise<SendOutcome> {
-  const clipboardText = await vscode.env.clipboard.readText();
+export async function sendClipboard(deps: SendPipelineDeps): Promise<SendOutcome> {
+  let clipboardText: string;
+  try {
+    clipboardText = await vscode.env.clipboard.readText();
+  } catch (error) {
+    deps.log.append(`clipboard read failed: ${String(error)}`);
+    void vscode.window.showWarningMessage('Send To Terminal: could not read the clipboard.');
+    return 'failed';
+  }
+
   const settings = getSettings();
 
   const text = resolveText(
@@ -14,9 +22,5 @@ export async function sendClipboard(): Promise<SendOutcome> {
     { trimWhitespace: settings.trimWhitespace, fallbackToCurrentLine: false }
   );
 
-  return runSendPipeline(
-    { text, source: 'clipboard', newTerminal: false },
-    settings,
-    createHostDeps()
-  );
+  return runSendPipeline({ text, source: 'clipboard', newTerminal: false }, settings, deps);
 }
